@@ -55,13 +55,16 @@ class DuplicateLink(Base):
         String(36), ForeignKey("incidents.id", ondelete="CASCADE"), nullable=False
     )
     composite_score: Mapped[float] = mapped_column(Float, nullable=False)
-    text_sim: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    hash_sim: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     image_sim: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    text_sim: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     geo_dist_m: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     time_sim: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="Candidate")
+    recommendation: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="Pending")
     decided_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     decided_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    detected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_utcnow)
 
     __table_args__ = (

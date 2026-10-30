@@ -26,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import analysis, assess, audit, demo, duplicates, health, incidents, users
+from app.routers import analysis, assess, audit, demo, duplicates, health, incidents, triage, users
 
 
 # ── Lifespan (startup / shutdown) ─────────────────────────────────────────────
@@ -79,6 +79,7 @@ app.include_router(audit.router)
 app.include_router(demo.router)
 app.include_router(users.router)
 app.include_router(assess.router)
+app.include_router(triage.router)
 
 
 # ── Static files + frontend ───────────────────────────────────────────────────

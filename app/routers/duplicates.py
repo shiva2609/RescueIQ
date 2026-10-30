@@ -23,7 +23,15 @@ def get_duplicates(db: DbSession):
 def decide_duplicate(
     link_id: str,
     db: DbSession,
-    payload: dict = Body(..., example={"decision": "Confirmed", "actor": "Coordinator"}),
+    payload: dict = Body(
+        ...,
+        openapi_examples={
+            "confirm": {
+                "summary": "Confirm duplicate",
+                "value": {"decision": "Confirmed", "actor": "Coordinator"},
+            }
+        },
+    ),
 ):
     decision = payload.get("decision", "")
     actor = payload.get("actor", "Operator")

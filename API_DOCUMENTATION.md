@@ -267,3 +267,169 @@ Calculate transparent rule-based damage severity from category and situational m
   }
   ```
 - **Response**: `200 OK` with full `SeverityEstimate` payload and audit factor trace.
+
+---
+
+### 7. Intelligent Incident Prioritization Engine (`/api/v2/triage/*`)
+
+All outputs are explicitly labeled as **PRELIMINARY DECISION-SUPPORT ASSESSMENTS**. They are designed to support human incident commanders and must never be used as the sole automated basis for life-safety actions.
+
+#### `POST /api/v2/triage/severity`
+[Module A] Estimate preliminary damage severity (`Low`, `Moderate`, `High`, `Critical`) with complete evidence trail and quantified uncertainty.
+- **Rules & Guarantees**:
+  - AI confidence is **never** used as a severity proxy.
+  - Life-threatening categories (`Fire and smoke`) automatically baseline at $\ge \text{High}$.
+  - Critical keywords (`collapse`, `trapped`, `casualt*`) elevate to `Critical`.
+  - Blocked access, high urgency, and large affected population escalate severity by 1–2 levels.
+  - Absence of imagery or GPS elevates the uncertainty metric (`0.0`–`1.0`).
+- **Request Body**:
+  ```json
+  {
+    "clip_category": "Building damage",
+    "clip_confidence": 0.82,
+    "yolo_detections": [
+      { "label": "person", "confidence": 0.75 }
+    ],
+    "urgency_score": 75.0,
+    "people_affected": 30,
+    "access_blocked": true,
+    "description": "Partial wall collapse with trapped occupants"
+  }
+  ```
+- **Response**: `200 OK`
+  ```json
+  {
+    "level": "Critical",
+    "score_0_100": 95.0,
+    "evidence": [
+      { "source": "visual_ai", "signal": "Disaster category: Building damage", "weight": 0.3, "value": "Baseline severity index 1 → Moderate" },
+      { "source": "keyword", "signal": "Critical keyword 'trapped' detected", "weight": 0.5, "value": "Keyword triggers minimum Critical" },
+      { "source": "reporter", "signal": "Emergency vehicle access blocked", "weight": 0.2, "value": "Access blocked = True" }
+    ],
+    "uncertainty": 0.0,
+    "uncertainty_reason": "Sufficient data available — uncertainty is minimal",
+    "high_risk_flag": true,
+    "preliminary_label": "PRELIMINARY DECISION-SUPPORT ASSESSMENT..."
+  }
+  ```
+
+#### `POST /api/v2/triage/severity/incident/{id}`
+[Module A] Run severity estimation on an existing stored incident by ID, reading persisted metadata and probabilities.
+
+#### `POST /api/v2/triage/duplicates/scan`
+[Module B] Pairwise multimodal duplicate detection across stored incidents.
+- **Safety Invariant**: Reports are **never automatically deleted or merged**.
+- **Composite Similarity Formula**:
+  $$S_{\text{dup}} = 0.30 \cdot S_{\text{dHash}} + 0.20 \cdot S_{\text{image}} + 0.20 \cdot S_{\text{text}} + 0.15 \cdot S_{\text{geo}} + 0.15 \cdot S_{\text{time}}$$
+- **Query Parameter**: `limit` (int, 10–1000, default: 200).
+- **Response**: `200 OK` with candidate pairs, similarity breakdown, review clusters, and persisted `DuplicateLink` records.
+
+#### `GET /api/v2/triage/duplicates`
+[Module B] List duplicate candidate links with enriched incident descriptions and similarity breakdowns.
+- **Query Parameter**: `status` (`Pending`, `Confirmed`, `Split`).
+
+#### `POST /api/v2/triage/duplicates/{link_id}/decision`
+[Module B] Record human operator decision (`Confirmed` or `Split`) on a duplicate candidate pair.
+
+#### `POST /api/v2/triage/priority`
+[Module C] Calculate configurable 0–100 priority score with transparent multi-factor breakdown and explainability.
+- **Transparent Formula**:
+  $$P = w_{\text{severity}} \cdot S + w_{\text{urgency}} \cdot U + w_{\text{impact}} \cdot I + w_{\text{access}} \cdot A$$
+  - Default weights: $w_{\text{severity}} = 0.40$, $w_{\text{urgency}} = 0.25$, $w_{\text{impact}} = 0.20$, $w_{\text{access}} = 0.15$ ($\sum w = 1.0$).
+  - Population impact ($I$) uses logarithmic scaling: $\min(100, 20 \cdot \ln(1 + \text{people}) + 5 \cdot \text{corroboration})$.
+  - High-risk flag is raised if score $\ge 75$, severity is `Critical`, or when model confidence is low ($< 0.40$) but urgency/access-blockage signals danger.
+- **Request Body**:
+  ```json
+  {
+    "severity_level": "High",
+    "urgency_score": 70.0,
+    "people_affected": 25,
+    "access_blocked": true,
+    "corroboration_count": 1,
+    "model_confidence": 0.85
+  }
+  ```
+- **Response**: `200 OK`
+  ```json
+  {
+    "priority_score": 74.6,
+    "priority_band": "High",
+    "factors": [
+      {
+        "name": "Damage Severity",
+        "raw_score": 74.0,
+        "weight": 0.4,
+        "weighted_contribution": 29.6,
+        "explanation": "Preliminary severity level is 'High' (score=74/100)...",
+        "evidence": ["Severity level: High", "Numeric representation: 74"]
+      },
+      {
+        "name": "Reporter Urgency",
+        "raw_score": 70.0,
+        "weight": 0.25,
+        "weighted_contribution": 17.5,
+        "explanation": "Reporter-supplied urgency: 70/100 — High urgency...",
+        "evidence": ["Raw urgency input: 70"]
+      },
+      {
+        "name": "Population Impact",
+        "raw_score": 62.4,
+        "weight": 0.2,
+        "weighted_contribution": 12.48,
+        "explanation": "Impact score 62/100 computed using logarithmic scale...",
+        "evidence": ["People affected: 25", "Corroborating reports: 1"]
+      },
+      {
+        "name": "Accessibility",
+        "raw_score": 100.0,
+        "weight": 0.15,
+        "weighted_contribution": 15.0,
+        "explanation": "Emergency vehicle access is BLOCKED...",
+        "evidence": ["Access blocked: True"]
+      }
+    ],
+    "weight_config": {
+      "weight_severity": 0.4,
+      "weight_urgency": 0.25,
+      "weight_impact": 0.2,
+      "weight_access": 0.15
+    },
+    "high_risk_flag": true,
+    "flag_reason": "Access blocked AND high urgency reported",
+    "preliminary_label": "PRELIMINARY DECISION-SUPPORT ASSESSMENT..."
+  }
+  ```
+
+#### `POST /api/v2/triage/priority/incident/{id}`
+[Module C] Re-score an existing stored incident and update its persisted `priority_score`.
+
+#### `GET /api/v2/triage/priority/weights`
+[Module C] Retrieve current active priority weight configuration, mathematical formula, and descriptions.
+
+#### `PUT /api/v2/triage/priority/weights`
+[Module C] Administrator weight update endpoint.
+- Validates that weights sum to exactly `1.0` (tolerance `0.001`).
+- Records change in in-memory audit history with timestamp and actor.
+- **Request Body**:
+  ```json
+  {
+    "weight_severity": 0.35,
+    "weight_urgency": 0.30,
+    "weight_impact": 0.20,
+    "weight_access": 0.15,
+    "actor": "emergency_coordinator"
+  }
+  ```
+
+#### `GET /api/v2/triage/priority/weights/history`
+[Module C] Audit trail of all weight adjustments made during the session.
+
+#### `GET /api/v2/triage/queue`
+Ranked incident queue sorted by priority score descending.
+- **Query Parameters**:
+  - `min_score`: Minimum priority score threshold (`0.0`–`100.0`)
+  - `band`: Filter by band (`Critical`, `High`, `Moderate`, `Low`)
+  - `high_risk_only`: Boolean flag
+  - `limit`: Items per page (default: 50)
+  - `offset`: Pagination offset (default: 0)
+
