@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Damage Mapper | AI Disaster Assessment & Response Prioritization</title>
+  
+  <!-- Leaflet & MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  
+  <!-- Professional Light Theme CSS -->
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="app-root">
+  <!-- Mobile Sidebar Backdrop -->
+  <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
+
+  <!-- Sidebar Navigation -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">🛡️</div>
+      <div class="brand-text">
+        <h1>DAMAGE<span>MAPPER</span></h1>
+        <small>AI Disaster Intelligence</small>
+      </div>
+    </div>
+
+    <div class="sidebar-role-badge">
+      <span>Operating Mode:</span>
+      <span class="role-tag" id="currentRoleLabel">Coordinator</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-title">Operations & Intake</div>
+      <button class="nav-item active" data-view="landing" onclick="switchView('landing')">
+        <span class="nav-icon">🏠</span>
+        <span>Landing Overview</span>
+      </button>
+      <button class="nav-item" data-view="citizen-portal" onclick="switchView('citizen-portal')">
+        <span class="nav-icon">📝</span>
+        <span>Citizen Report Portal</span>
+      </button>
+      <button class="nav-item" data-view="dashboard" onclick="switchView('dashboard')">
+        <span class="nav-icon">📊</span>
+        <span>Operations Dashboard</span>
+      </button>
+      <button class="nav-item" data-view="incidents" onclick="switchView('incidents')">
+        <span class="nav-icon">🚨</span>
+        <span>Incident Queue</span>
+        <span class="nav-badge alert" id="sidebarPendingBadge" style="display:none">0</span>
+      </button>
+
+      <div class="nav-section-title">Geospatial & AI Intelligence</div>
+      <button class="nav-item" data-view="map-view" onclick="switchView('map-view')">
+        <span class="nav-icon">🗺️</span>
+        <span>Interactive Map</span>
+      </button>
+      <button class="nav-item" data-view="ai-analysis" onclick="switchView('ai-analysis')">
+        <span class="nav-icon">🧠</span>
+        <span>AI Explainability</span>
+        <span class="nav-badge" id="sidebarDupBadge" style="display:none">0</span>
+      </button>
+      <button class="nav-item" data-view="analytics" onclick="switchView('analytics')">
+        <span class="nav-icon">📈</span>
+        <span>Operational Analytics</span>
+      </button>
+
+      <div class="nav-section-title">System & Governance</div>
+      <button class="nav-item" data-view="admin" onclick="switchView('admin')">
+        <span class="nav-icon">⚙️</span>
+        <span>Admin & Audit Trail</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="system-status">
+        <span class="status-dot"></span>
+        <span>EfficientNet-B0 & MiniLM Online</span>
+      </div>
+      <button class="btn btn-sm btn-secondary" style="width:100%;margin-top:4px;" onclick="seedRealisticScenario()">
+        + Seed Scenario Demo
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Application Wrapper -->
+  <div class="main-wrapper">
+    <!-- Topbar Header -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="btn-mobile-toggle" onclick="toggleMobileSidebar()" aria-label="Toggle navigation menu">
+          ☰
+        </button>
+        <h2 class="page-title" id="topbarTitle">Platform Overview</h2>
+      </div>
+
+      <div class="topbar-right">
+        <div class="live-indicator">
+          <span class="pulse-dot"></span>
+          <span>LIVE SYNC</span>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="loadAllData()">
+          ↻ Refresh
+        </button>
+        <button class="btn btn-sm btn-primary" onclick="switchView('citizen-portal')">
+          + New Report
+        </button>
+      </div>
+    </header>
+
+    <!-- VIEW 1: LANDING OVERVIEW -->
+    <section id="view-landing" class="view-container active">
+      <div class="hero-banner">
+        <h2 class="hero-title">AI-Powered Disaster Damage Assessment & Incident Prioritization</h2>
+        <p class="hero-subtitle">
+          Damage Mapper transforms unstructured citizen photos, descriptions, and GPS coordinates into an explainable, 
+          prioritized triage queue for emergency response teams during floods, building collapses, and severe hazards.
+        </p>
+        <div class="hero-actions">
+          <button class="btn btn-lg btn-primary" onclick="switchView('citizen-portal')">
+            📝 Submit Citizen Incident Report
+          </button>
+          <button class="btn btn-lg btn-navy" onclick="switchView('dashboard')">
+            📊 Open Command Dashboard
+          </button>
+          <button class="btn btn-lg btn-secondary" onclick="switchView('map-view')">
+            🗺️ Explore Interactive Map
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Stats Ribbon -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Reports Received</div>
+          <div class="stat-value" id="heroStatTotal">0</div>
+          <div class="stat-desc">Live from SQLite database</div>
+        </div>
+        <div class="stat-card severe">
+          <div class="stat-label">Severe Damage</div>
+          <div class="stat-value" id="heroStatSevere" style="color:var(--sev-severe-solid)">0</div>
+          <div class="stat-desc">Identified by Vision AI</div>
+        </div>
+        <div class="stat-card verified">
+          <div class="stat-label">Verified by Humans</div>
+          <div class="stat-value" id="heroStatVerified" style="color:var(--status-verified)">0</div>
+          <div class="stat-desc">Coordinator confirmed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Response Units Assigned</div>
+          <div class="stat-value" id="heroStatAssigned" style="color:var(--navy-600)">0</div>
+          <div class="stat-desc">Active field operations</div>
+        </div>
+      </div>
+
+      <!-- 4-Pillar Pipeline Architecture Cards -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title"><span>⚡</span> 4-Pillar Core Architecture (RescueIQ PRD)</h3>
+          <span style="font-size:12px;color:var(--text-subtle);">Decision-Support · Human in the Loop</span>
+        </div>
+        <div class="pillars-grid">
+          <div class="pillar-card">
+            <div class="pillar-icon">📱</div>
+            <h4 class="pillar-title">1. Citizen Intake</h4>
+            <p class="pillar-desc">
+              Mobile-optimized ground-level photo upload, automatic GPS capture, hazard categorization, and immediate tracking ID generation.
+            </p>
+          </div>
+          <div class="pillar-card">
+            <div class="pillar-icon">🤖</div>
+            <h4 class="pillar-title">2. EfficientNet-B0 Vision</h4>
+            <p class="pillar-desc">
+              3-class damage classifier (Severe, Mild, Little-or-none) with an uncertainty abstention threshold (τ=0.50) to prevent forced false classifications.
+            </p>
+          </div>
+          <div class="pillar-card">
+            <div class="pillar-icon">🔗</div>
+            <h4 class="pillar-title">3. Multimodal Deduplication</h4>
+            <p class="pillar-desc">
+              Combines Sentence-Transformers NLP embeddings, image dHash perceptual hash, GPS distance, and time proximity to group repeating reports.
+            </p>
+          </div>
+          <div class="pillar-card">
+            <div class="pillar-icon">⚖️</div>
+            <h4 class="pillar-title">4. Transparent Priority Engine</h4>
+            <p class="pillar-desc">
+              Priority Score = 0.40·S + 0.25·U + 0.20·I + 0.15·A with factor breakdown, full coordinator overrides, and immutable audit logs.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: CITIZEN REPORTING PORTAL -->
+    <section id="view-citizen-portal" class="view-container">
+      <div style="max-width:880px;margin:0 auto;">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title"><span>📝</span> Citizen Incident Intake & Triage Portal</h3>
+            <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:3px 8px;border-radius:var(--radius-sm);font-weight:600">
+              For immediate life threats call 112 / 911
+            </span>
+          </div>
+
+          <form id="citizenReportForm">
+            <!-- Damage Photo Upload -->
+            <div class="form-group">
+              <label class="form-label">Damage Photograph (JPG, PNG, WEBP · Max 10MB) *</label>
+              <div class="dropzone" id="citizenDropzone">
+                <input type="file" id="citizenImageInput" name="image" accept="image/jpeg,image/png,image/webp" required>
+                <div style="font-size:28px;margin-bottom:6px;">📷</div>
+                <div style="font-weight:600;font-size:13px;color:var(--navy-900);">Drag & drop disaster photo or click to browse</div>
+                <div class="form-hint">Ground-level photos of floodwater, damaged buildings, or blocked roads work best.</div>
+                <div class="dropzone-preview" id="citizenImagePreview">
+                  <img id="citizenPreviewImg" alt="Selected upload">
+                </div>
+              </div>
+            </div>
+
+            <!-- Hazard Category & Description -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:14px;">
+              <div class="form-group">
+                <label class="form-label">Hazard Category *</label>
+                <select name="category" class="form-select" required>
+                  <option value="Flood">Flood & Inundation</option>
+                  <option value="Building damage">Structural Building Damage</option>
+                  <option value="Road obstruction">Road Blockage / Debris</option>
+                  <option value="Fire">Fire & Smoke</option>
+                  <option value="Landslide">Landslide & Mudflow</option>
+                  <option value="Other">Other / Unspecified</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Self-Reported Urgency (0–100)</label>
+                <input type="range" name="urgency" min="0" max="100" value="65" class="form-control" id="citizenUrgencyInput" style="padding:4px 0;">
+                <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-subtle);margin-top:2px;">
+                  <span>0 (Low)</span>
+                  <span id="citizenUrgencyLabel" style="font-weight:700;color:var(--navy-900);">65 (High Urgency)</span>
+                  <span>100 (Critical)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Description of Damage & Hazards *</label>
+              <textarea name="description" class="form-control" rows="3" placeholder="Describe depth of water, trapped residents, damaged foundations, downed power lines, or accessibility..." required></textarea>
+            </div>
+
+            <!-- Location Picker (Device GPS + Interactive Map Pin) -->
+            <div class="form-group">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <label class="form-label" style="margin-bottom:0;">Incident Location (GPS) *</label>
+                <button type="button" class="btn btn-sm btn-secondary" onclick="captureDeviceGPS()">
+                  📍 Use Device GPS
+                </button>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div>
+                  <input type="number" step="any" name="latitude" id="citizenLat" class="form-control" placeholder="Latitude (e.g. 12.9716)" required>
+                </div>
+                <div>
+                  <input type="number" step="any" name="longitude" id="citizenLon" class="form-control" placeholder="Longitude (e.g. 77.5946)" required>
+                </div>
+              </div>
+
+              <!-- Interactive Mini Map Location Picker -->
+              <div id="citizenLocationMap" style="height:220px;border-radius:var(--radius-sm);border:1px solid var(--border-light);"></div>
+              <div class="form-hint">Tip: Click anywhere on the map above to drop a pin and set exact incident coordinates.</div>
+            </div>
+
+            <!-- Impact & Accessibility Details -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:14px;">
+              <div class="form-group">
+                <label class="form-label">Estimated People Affected</label>
+                <input type="number" name="people_affected" class="form-control" min="0" value="5" placeholder="Number of residents affected">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Reporter Name / Organization (optional)</label>
+                <input type="text" name="reporter" class="form-control" placeholder="Citizen / Field Volunteer (defaults to Anonymous)">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" name="access_blocked" value="true" style="width:16px;height:16px;">
+                <span><b>Road or Emergency Access is Blocked:</b> Check if rescue vehicles cannot reach this location.</span>
+              </label>
+            </div>
+
+            <div style="margin-top:20px;">
+              <button type="submit" id="citizenSubmitBtn" class="btn btn-lg btn-primary" style="width:100%;">
+                <span>🚀</span> Submit Emergency Report
+              </button>
+            </div>
+          </form>
+
+          <!-- Post-submission result notice -->
+          <div id="citizenSuccessNotice"></div>
+        </div>
+
+        <!-- Citizen Status Tracker Lookup Tool -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title"><span>🔍</span> Track My Incident Report</h3>
+            <span style="font-size:12px;color:var(--text-subtle);">Check live status and coordinator updates</span>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <input type="text" id="citizenTrackInput" class="form-control" placeholder="Enter your Tracking ID (e.g. 7a8b9c...)">
+            <button class="btn btn-secondary" onclick="trackReportById()">Track Status</button>
+          </div>
+          <div id="citizenTrackResult"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: OPERATIONS DASHBOARD -->
+    <section id="view-dashboard" class="view-container">
+      <!-- KPI Stats Row -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Incidents</div>
+          <div class="stat-value" id="statTotal">0</div>
+          <div class="stat-desc">All reports</div>
+        </div>
+        <div class="stat-card pending">
+          <div class="stat-label">Awaiting Verification</div>
+          <div class="stat-value" id="statPending" style="color:var(--status-pending)">0</div>
+          <div class="stat-desc">Pending coordinator review</div>
+        </div>
+        <div class="stat-card severe">
+          <div class="stat-label">Severe Damage</div>
+          <div class="stat-value" id="statSevere" style="color:var(--sev-severe-solid)">0</div>
+          <div class="stat-desc">High triage priority</div>
+        </div>
+        <div class="stat-card abstained">
+          <div class="stat-label">Abstained / Uncertain</div>
+          <div class="stat-value" id="statAbstained" style="color:var(--sev-abstained-solid)">0</div>
+          <div class="stat-desc">Low model confidence (τ&lt;0.50)</div>
+        </div>
+        <div class="stat-card duplicates">
+          <div class="stat-label">Duplicate Candidates</div>
+          <div class="stat-value" id="statDuplicates" style="color:#d97706">0</div>
+          <div class="stat-desc">Multimodal similarity links</div>
+        </div>
+        <div class="stat-card verified">
+          <div class="stat-label">Assigned Response Teams</div>
+          <div class="stat-value" id="statAssigned" style="color:var(--navy-600)">0</div>
+          <div class="stat-desc">Units dispatched</div>
+        </div>
+      </div>
+
+      <!-- Urgent Attention Banner -->
+      <div id="urgentAlertsContainer"></div>
+
+      <!-- Main Dashboard Grid -->
+      <div style="display:grid;grid-template-columns:minmax(0, 1.4fr) minmax(360px, 1fr);gap:18px;">
+        <!-- Left: Mini Map Snapshot -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title"><span>🗺️</span> Real-time Incident Heat & Cluster Snapshot</h3>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-ghost" onclick="switchView('map-view')">Full Interactive Map →</button>
+            </div>
+          </div>
+          <div id="dashboardMapSnapshot" style="height:380px;border-radius:var(--radius-sm);border:1px solid var(--border-light)"></div>
+          <div style="display:flex;gap:14px;font-size:11px;margin-top:10px;color:var(--text-muted);">
+            <span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc2626;margin-right:4px;"></i>Severe (95)</span>
+            <span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ea580c;margin-right:4px;"></i>Mild (55)</span>
+            <span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#16a34a;margin-right:4px;"></i>Little-or-none (15)</span>
+            <span><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#9333ea;margin-right:4px;"></i>Abstained (0)</span>
+          </div>
+        </div>
+
+        <!-- Right: Recent Triage Activity -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title"><span>⚡</span> Rapid Triage Desk</h3>
+            <button class="btn btn-sm btn-secondary" onclick="switchView('incidents')">Go to Full Queue</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+            Prioritization Formula: <b>P = 0.40·S + 0.25·U + 0.20·I + 0.15·A</b>. Review pending incidents below.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="background:var(--bg-subtle);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border-light)">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-subtle);">Operating Guidelines</div>
+              <ul style="font-size:12px;color:var(--text-main);margin:6px 0 0 16px;line-height:1.6;">
+                <li>Verify citizen photos before team dispatch.</li>
+                <li>Use <b>Human Label Override</b> if flood level differs from AI estimate.</li>
+                <li>Confirm or split duplicate candidates to corroborate independent reports.</li>
+              </ul>
+            </div>
+            <div style="margin-top:6px;">
+              <button class="btn btn-primary" style="width:100%;" onclick="switchView('incidents')">
+                🚨 Open Searchable Incident Queue
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 4: INCIDENT MANAGEMENT QUEUE -->
+    <section id="view-incidents" class="view-container">
+      <div class="panel">
+        <div class="panel-header">
+          <div>
+            <h3 class="panel-title"><span>🚨</span> Prioritized Incident Triage & Management Queue</h3>
+            <span style="font-size:12px;color:var(--text-subtle);" id="filteredIncidentsCount">Loading incidents…</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-secondary" onclick="loadAllData()">↻ Refresh</button>
+          </div>
+        </div>
+
+        <!-- Filters & Search Toolbar -->
+        <div style="background:var(--bg-subtle);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:10px;">
+          <div>
+            <label class="form-label" style="font-size:11px;">Search Queue</label>
+            <input type="text" id="queueSearchInput" class="form-control" placeholder="Search description, reporter, ID…">
+          </div>
+          <div>
+            <label class="form-label" style="font-size:11px;">Verification Status</label>
+            <select id="filterStatus" class="form-select">
+              <option value="all">All Statuses</option>
+              <option value="Pending">Pending Verification</option>
+              <option value="Verified">Verified</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:11px;">Hazard Category</label>
+            <select id="filterCategory" class="form-select">
+              <option value="all">All Categories</option>
+              <option value="Flood">Flood & Inundation</option>
+              <option value="Building damage">Building Damage</option>
+              <option value="Road obstruction">Road Obstruction</option>
+              <option value="Fire">Fire & Smoke</option>
+              <option value="Landslide">Landslide</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:11px;">AI Severity Class</label>
+            <select id="filterSeverity" class="form-select">
+              <option value="all">All Severity Classes</option>
+              <option value="Severe damage">Severe damage (95)</option>
+              <option value="Mild damage">Mild damage (55)</option>
+              <option value="Little-or-none">Little-or-none (15)</option>
+              <option value="Abstained / Uncertain">Abstained / Uncertain (0)</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" style="font-size:11px;">Sort By</label>
+            <select id="sortIncidents" class="form-select">
+              <option value="priority_desc">Highest Priority (Score)</option>
+              <option value="priority_asc">Lowest Priority</option>
+              <option value="date_desc">Newest First</option>
+              <option value="urgency_desc">Highest Urgency</option>
+              <option value="confidence_desc">Highest AI Confidence</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Incidents List Container -->
+        <div id="incidentsQueueList" class="incidents-queue">
+          <div style="text-align:center;padding:40px;color:var(--text-muted)">Connecting to RescueIQ backend…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 5: INTERACTIVE MAP -->
+    <section id="view-map-view" class="view-container">
+      <div class="panel" style="padding:14px;">
+        <div class="panel-header" style="margin-bottom:10px;padding-bottom:10px;">
+          <h3 class="panel-title"><span>🗺️</span> Live Situational Hazard Map</h3>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-secondary" onclick="locateMeOnMainMap()">📍 My Location</button>
+            <button class="btn btn-sm btn-secondary" id="btnToggleBlindSpots" onclick="toggleBlindSpots()">Show Silent Zones (GEO-6)</button>
+            <button class="btn btn-sm btn-primary" onclick="loadAllData()">↻ Sync Map</button>
+          </div>
+        </div>
+
+        <!-- Map Container -->
+        <div id="interactiveMap" class="map-container"></div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--text-muted);">
+          <div style="display:flex;gap:14px;align-items:center;">
+            <span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#dc2626;margin-right:4px;"></i>Severe (95)</span>
+            <span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ea580c;margin-right:4px;"></i>Mild (55)</span>
+            <span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#16a34a;margin-right:4px;"></i>Little-or-none (15)</span>
+            <span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#9333ea;margin-right:4px;"></i>Abstained (0)</span>
+          </div>
+          <div>Click markers to view priority breakdown and inspect incident details.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 6: AI ANALYSIS & EXPLAINABILITY -->
+    <section id="view-ai-analysis" class="view-container">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(400px, 1fr));gap:20px;">
+        <!-- Live Vision Classifier Playground -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title"><span>🤖</span> Live Vision Classifier Playground</h3>
+            <span style="font-size:11px;color:var(--text-subtle);">EfficientNet-B0 + Abstention (τ=0.50)</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+            Test the 3-class damage classifier directly on any ground-level disaster image. View class probabilities and uncertainty abstention behavior.
+          </p>
+
+          <div class="form-group">
+            <input type="file" id="aiPlaygroundInput" accept="image/jpeg,image/png,image/webp" class="form-control">
+            <img id="aiPlaygroundPreview" style="display:none;width:100%;max-height:200px;object-fit:cover;border-radius:var(--radius-sm);margin-top:10px;border:1px solid var(--border-light);">
+          </div>
+
+          <button id="aiPlaygroundBtn" class="btn btn-primary" style="width:100%;">Run Model Inference</button>
+          <div id="aiPlaygroundResult"></div>
+        </div>
+
+        <!-- Priority Engine Simulator -->
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title"><span>⚖️</span> Transparent Priority Engine Simulator</h3>
+            <span style="font-size:11px;color:#d97706;font-weight:600;">PR-1 Rule-Based Formula</span>
+          </div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+            Formula: <b>Priority = 0.40·S + 0.25·U + 0.20·I + 0.15·A</b>. Drag sliders to observe score calculation.
+          </p>
+
+          <div class="sim-slider-row">
+            <label style="font-size:12px;font-weight:600;">Severity S (40%)</label>
+            <input type="range" id="simSev" min="0" max="100" value="95" class="form-control" style="padding:0;">
+            <span id="simSevVal" style="font-weight:700;font-size:12px;">95</span>
+          </div>
+
+          <div class="sim-slider-row">
+            <label style="font-size:12px;font-weight:600;">Urgency U (25%)</label>
+            <input type="range" id="simUrg" min="0" max="100" value="80" class="form-control" style="padding:0;">
+            <span id="simUrgVal" style="font-weight:700;font-size:12px;">80</span>
+          </div>
+
+          <div class="sim-slider-row">
+            <label style="font-size:12px;font-weight:600;">Impact I (20%)</label>
+            <input type="range" id="simImp" min="0" max="100" value="60" class="form-control" style="padding:0;">
+            <span id="simImpVal" style="font-weight:700;font-size:12px;">60</span>
+          </div>
+
+          <div class="sim-slider-row">
+            <label style="font-size:12px;font-weight:600;">Access A (15%)</label>
+            <input type="range" id="simAcc" min="0" max="100" value="100" class="form-control" style="padding:0;">
+            <span id="simAccVal" style="font-weight:700;font-size:12px;">100</span>
+          </div>
+
+          <div style="background:var(--bg-subtle);border-radius:var(--radius-sm);padding:14px;border:1px solid var(--border-light);margin-top:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <span style="font-size:12px;text-transform:uppercase;font-weight:700;color:var(--text-subtle);">Computed Priority</span>
+              <span style="font-size:28px;font-weight:800;color:var(--navy-900);" id="simTotalScore">85.0</span>
+            </div>
+            <div id="simBreakdownPills"></div>
+          </div>
+          <div class="form-hint" style="margin-top:8px;">* Notice: Provisional rule-based weights. Not scientifically validated (RescueIQ PR-3).</div>
+        </div>
+      </div>
+
+      <!-- Multimodal Deduplication Center -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title"><span>🔗</span> Multimodal Deduplication Candidate Center</h3>
+          <span style="font-size:11px;color:var(--text-subtle);">MiniLM Sentence Embeddings + dHash + GPS + Time</span>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">
+          Flagged duplicate pairs are displayed below. Coordinators can <b>Confirm</b> to cluster reports or <b>Split</b> to treat them as independent emergencies.
+        </p>
+        <div id="duplicatesListContainer"></div>
+      </div>
+    </section>
+
+    <!-- VIEW 7: ANALYTICS & TRENDS -->
+    <section id="view-analytics" class="view-container">
+      <div class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title"><span>📈</span> Disaster Intelligence Operational Analytics</h3>
+          <button class="btn btn-sm btn-secondary" onclick="renderAnalyticsCharts()">↻ Refresh Charts</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+          Real-time metrics computed directly from active database records.
+        </p>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
+          <!-- Severity Donut -->
+          <div style="background:var(--bg-surface);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;">
+            <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--navy-900);">Damage Severity Breakdown</h4>
+            <div style="max-height:260px;position:relative;">
+              <canvas id="chartSeverity"></canvas>
+            </div>
+          </div>
+
+          <!-- Category Bar Chart -->
+          <div style="background:var(--bg-surface);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;">
+            <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--navy-900);">Incidents by Hazard Category</h4>
+            <div style="max-height:260px;position:relative;">
+              <canvas id="chartCategories"></canvas>
+            </div>
+          </div>
+
+          <!-- Pipeline Stages -->
+          <div style="background:var(--bg-surface);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;">
+            <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--navy-900);">Triage & Response Funnel</h4>
+            <div style="max-height:260px;position:relative;">
+              <canvas id="chartPipeline"></canvas>
+            </div>
+          </div>
+
+          <!-- Priority Distribution -->
+          <div style="background:var(--bg-surface);border:1px solid var(--border-light);border-radius:var(--radius-sm);padding:16px;">
+            <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--navy-900);">Priority Score Triage Distribution</h4>
+            <div style="max-height:260px;position:relative;">
+              <canvas id="chartPriority"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 8: ADMIN & AUDIT TRAIL -->
+    <section id="view-admin" class="view-container">
+      <div class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title"><span>⚙️</span> System Architecture & Backend Health</h3>
+          <span style="font-size:11px;color:var(--status-verified);font-weight:700;">● Online</span>
+        </div>
+        <div id="adminHealthStatus" style="margin-bottom:16px;"></div>
+
+        <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--border-light);">
+          <button class="btn btn-secondary" onclick="exportDataJSON()">📥 Export Incidents (JSON)</button>
+          <button class="btn btn-secondary" onclick="exportDataCSV()">📥 Export Incidents (CSV)</button>
+          <button class="btn btn-secondary" onclick="seedRealisticScenario()">+ Re-seed Scenario Data</button>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;color:var(--text-subtle);">Simulate User Persona:</span>
+            <button class="btn btn-sm btn-ghost" onclick="setRole('Coordinator')">Coordinator</button>
+            <button class="btn btn-sm btn-ghost" onclick="setRole('Field Unit')">Field Unit</button>
+            <button class="btn btn-sm btn-ghost" onclick="setRole('Citizen')">Citizen</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Immutable Audit Log Table -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title"><span>📜</span> Global Immutable Audit Trail (IM-4)</h3>
+          <button class="btn btn-sm btn-secondary" onclick="renderAdminView()">↻ Refresh Logs</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+          Every status update, human AI override, team assignment, and duplicate decision is recorded permanently with timestamp and actor.
+        </p>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Incident ID</th>
+                <th>Action</th>
+                <th>Value Change</th>
+                <th>Actor</th>
+              </tr>
+            </thead>
+            <tbody id="adminAuditTableBody">
+              <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">Loading audit history…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- MODAL 1: Incident Details & Audit Trail Dialog -->
+<dialog id="incidentDetailsModal" closedby="any">
+  <div class="modal-header">
+    <h3>Incident Details & Intelligence</h3>
+    <button class="btn btn-sm btn-ghost" onclick="closeDialog('incidentDetailsModal')">✕</button>
+  </div>
+  <div class="modal-body" id="incidentDetailsBody">
+    <div style="text-align:center;padding:20px;color:var(--text-muted)">Loading details…</div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeDialog('incidentDetailsModal')">Close</button>
+  </div>
+</dialog>
+
+<!-- MODAL 2: Team Assignment Dialog -->
+<dialog id="assignModal" closedby="any">
+  <div class="modal-header">
+    <h3>Assign Response Team</h3>
+    <button class="btn btn-sm btn-ghost" onclick="closeDialog('assignModal')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="form-group">
+      <label class="form-label">Response Unit / Team Name</label>
+      <input type="text" id="assignTeamInput" class="form-control" placeholder="e.g. Urban Search & Rescue Alpha, Drainage Unit 4">
+      <div class="form-hint">Assigning a team automatically transitions incident response status to 'Assigned'.</div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-secondary" onclick="closeDialog('assignModal')">Cancel</button>
+    <button class="btn btn-primary" onclick="submitAssignment()">Save Assignment</button>
+  </div>
+</dialog>
+
+<!-- MODAL 3: Image Zoom Lightbox Dialog -->
+<dialog id="lightboxModal" closedby="any" style="max-width:900px;background:#000000;padding:0;">
+  <div style="position:relative;">
+    <button style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;" onclick="closeDialog('lightboxModal')">✕</button>
+    <img id="lightboxImage" src="" style="width:100%;max-height:85vh;object-fit:contain;display:block;" alt="Zoomed damage photo">
+  </div>
+</dialog>
+
+<!-- Toast Notifications Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Libraries: Leaflet, MarkerCluster, Chart.js -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+<!-- Application Script -->
+<script src="/static/app.js"></script>
+</body>
+</html>
